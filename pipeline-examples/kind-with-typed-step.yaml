@@ -1,0 +1,53 @@
+# Set this pipeline to use a Runtime within the same cluster where you want to deploy
+# the kind pod. The Runtime must have network access to the cluster node IPs.
+# The kubeconfig context for deploying to the kind cluster will be called 'kind-kind'.
+# Tested with a Hybrid Runner in EKS version "v1.18.9-eks-d1db3c"
+
+version: "1.0"
+# Stages can help you organize your steps in stages
+stages:
+  - "clone"
+  - "build"
+  - "test"
+
+hooks:
+ on_finish:
+   # Cleanup kind pod and service
+   exec:
+     image: codefresh/kubectl
+     environment:
+       # KIND_ variables must exist at the very start of the pipeline build
+       - KIND_POD_CONTEXT=${{KIND_POD_CONTEXT}}
+       - KIND_POD_NS=${{KIND_POD_NS}}
+       - CF_BUILD_ID=${{CF_BUILD_ID}}
+     commands:
+       - kubectl config use-context $KIND_POD_CONTEXT
+       - kubectl config set-context --current --namespace=$KIND_POD_NS
+       - kubectl delete all -l app=kind-cluster-$CF_BUILD_ID
+
+steps:
+
+  create_kind_cluster:
+    title: "Create the kind cluster"
+    stage: build
+    type: ${{CF_ACCOUNT}}/kind
+    arguments:
+      KIND_POD_CONTEXT: '${{KIND_POD_CONTEXT}}'
+      KIND_POD_NS: '${{KIND_POD_NS}}'
+
+  test_kind:
+    title: Deploy a test pod to kind
+    stage: test
+    image: codefresh/kubectl
+    commands:
+      # Change to the context where the kind pod is running
+      - kubectl config use-context $KIND_POD_CONTEXT
+      # Load an image into kind cluster
+      - kubectl -n $KIND_POD_NS exec $KIND_POD_NAME -- docker pull k8s.gcr.io/echoserver:1.4
+      - kubectl -n $KIND_POD_NS exec $KIND_POD_NAME -- kind load docker-image k8s.gcr.io/echoserver:1.4
+      # Change to the context of the kind cluster and run some tests
+      - kubectl config use-context $KIND_CLUSTER_CONTEXT
+      - kubectl get node
+      - kubectl create deployment hello-node --image=k8s.gcr.io/echoserver:1.4
+      - kubectl wait --for=condition=ready pod -l app=hello-node --timeout=10s
+      - kubectl get pod

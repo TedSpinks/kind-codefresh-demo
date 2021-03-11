@@ -1,0 +1,102 @@
+# Set this pipeline to use a Runtime within the same cluster where you want to deploy
+# the kind pod. The Runtime must have network access to the cluster node IPs.
+# The kubeconfig context for deploying to the kind cluster will be called 'kind-kind'.
+# Tested with a Hybrid Runner in EKS version "v1.18.9-eks-d1db3c"
+
+version: "1.0"
+# Stages can help you organize your steps in stages
+stages:
+  - "clone"
+  - "build"
+  - "test"
+
+hooks:
+ on_finish:
+   # Cleanup kind pod and service
+   exec:
+     image: codefresh/kubectl
+     environment:
+       # KIND_ variables must exist at the very start of the pipeline build
+       - KIND_POD_CONTEXT=${{KIND_POD_CONTEXT}}
+       - KIND_POD_NS=${{KIND_POD_NS}}
+       - CF_BUILD_ID=${{CF_BUILD_ID}}
+     commands:
+       - kubectl config use-context $KIND_POD_CONTEXT
+       - kubectl config set-context --current --namespace=$KIND_POD_NS
+       - kubectl delete all -l app=kind-cluster-$CF_BUILD_ID
+
+steps:
+  main_clone:
+    title: Clone main repo
+    stage: clone
+    type: git-clone
+    repo: '${{CF_REPO_OWNER}}/${{CF_REPO_NAME}}'
+    revision: '${{CF_REVISION}}'
+
+  verify_create_namespace:
+    title: Verify or create namespace
+    stage: build
+    image: codefresh/kubectl
+    commands:
+      - kubectl config use-context $KIND_POD_CONTEXT
+      - kubectl create ns $KIND_POD_NS | true
+      - kubectl get ns $KIND_POD_NS
+
+  deploy_pod:
+    # Name of the resuling pod and service is ${{KIND_POD_NAME}}
+    title: Deploy kind pod and service to K8s
+    stage: build
+    image: codefresh/cf-deploy-kubernetes:16.1.4
+    working_directory: '${{main_clone}}'
+    commands:
+      # Deploy pod
+      - /cf-deploy-kubernetes kind-pod.yaml
+      - export KIND_POD_NAME=kind-cluster-${{CF_BUILD_ID}}
+      # Deploy service - I used nodeport because its always unique
+      - kubectl -n $KIND_POD_NS expose pod $KIND_POD_NAME --port 30001 --type NodePort
+      # Export pipeline vars
+      - cf_export KIND_POD_NAME
+      - cf_export KIND_NODEPORT=$(kubectl -n $KIND_POD_NS get svc $KIND_POD_NAME -o jsonpath='{ $.spec.ports[0].nodePort }')
+      - cf_export KIND_HOST_IP=$(kubectl -n $KIND_POD_NS get po $KIND_POD_NAME -o jsonpath='{ $.status.hostIP }')
+      # Wait for kind to start
+      - if [ -z ${KIND_TIMEOUT+x} ]; then export KIND_TIMEOUT=180s; fi  # Default kind timout in secs (3 min)
+      - kubectl -n $KIND_POD_NS wait --for=condition=ready pod -l app=$KIND_POD_NAME --timeout=$KIND_TIMEOUT && export status=$? || export status=$?
+      - kubectl -n $KIND_POD_NS logs $KIND_POD_NAME
+      - if [ "$status" != "0" ]; then echo "Timed out waiting for kind pod to start"; exit 1; fi
+    environment:
+      - KUBECONTEXT=${{KIND_POD_CONTEXT}}
+      - KUBERNETES_NAMESPACE=${{KIND_POD_NS}}
+
+  update_kube_config:
+    title: Add kind to kubeconfig
+    stage: build
+    image: codefresh/kubectl
+    commands:
+      - kubectl config use-context $KIND_POD_CONTEXT
+      # Get kube config from within kind pod
+      - kubectl -n $KIND_POD_NS exec $KIND_POD_NAME -- cat /root/.kube/config > /tmp/temp-kc.yaml
+      # Merge kind kube config with pipeline kube config (yq v3 syntax is nicer than v4!)
+      - wget https://github.com/mikefarah/yq/releases/download/3.4.1/yq_linux_amd64 -O /usr/bin/yq
+      - chmod +x /usr/bin/yq
+      - yq merge --arrays append --inplace $KUBECONFIG /tmp/temp-kc.yaml
+      # Update merged kube config to use the nodeport service
+      - kubectl config set-cluster kind-kind --server=https://$KIND_HOST_IP:$KIND_NODEPORT --insecure-skip-tls-verify=true
+      # Record context for deploying to the kind cluster
+      - cf_export KIND_CLUSTER_CONTEXT=kind-kind  # default context name for kind
+
+  test_kind:
+    title: Deploy a test pod to kind
+    stage: test
+    image: codefresh/kubectl
+    commands:
+      # Change to the context where the kind pod is running
+      - kubectl config use-context $KIND_POD_CONTEXT
+      # Load an image into kind cluster
+      - kubectl -n $KIND_POD_NS exec $KIND_POD_NAME -- docker pull k8s.gcr.io/echoserver:1.4
+      - kubectl -n $KIND_POD_NS exec $KIND_POD_NAME -- kind load docker-image k8s.gcr.io/echoserver:1.4
+      # Change to the context of the kind cluster and run some tests
+      - kubectl config use-context $KIND_CLUSTER_CONTEXT
+      - kubectl get node
+      - kubectl create deployment hello-node --image=k8s.gcr.io/echoserver:1.4
+      - kubectl wait --for=condition=ready pod -l app=hello-node --timeout=10s
+      - kubectl get pod
