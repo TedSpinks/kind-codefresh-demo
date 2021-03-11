@@ -6,6 +6,10 @@ A Codefresh step for creating an ephemeral kind cluster (Kubernetes in Docker). 
 
 Builds on the excellent work done by Jie Yu and Steven Chung to solve the problem of running kind within Kubernetes (as opposed to Docker Desktop).
 
+References:
+- https://d2iq.com/blog/running-kind-inside-a-kubernetes-cluster-for-continuous-integration
+- https://github.com/jieyu/docker-images/tree/master/dind
+
 ### How to install this step in your Codefresh account
 
 Prerequisites:
@@ -30,5 +34,5 @@ codefresh create step-type -f step.yaml
 After installing the step, you'll then be able to see it from the Codefresh IDE by clicking the **Steps** tab, then the **My Steps** tab.
 
 This repo includes 2 example pipelines to illustrate how to use the step.
-- `pipeline-examples/kind-with-typed-step.yaml` - this is the main example any shows the typical usage of the step
+- `pipeline-examples/kind-with-typed-step.yaml` - this is the main example that shows the typical usage.
 - `pipeline-examples/kind-with-freestyle-steps.yaml` - this exposes the step's underlying code as Freestyle steps, so that you can easily experiment with changes and additions.
