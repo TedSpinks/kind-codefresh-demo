@@ -27,11 +27,11 @@ hooks:
 
 steps:
   main_clone:
-    title: Clone main repo
+    title: Clone repo with kind pod resource yaml
     stage: clone
     type: git-clone
-    repo: '${{CF_REPO_OWNER}}/${{CF_REPO_NAME}}'
-    revision: '${{CF_REVISION}}'
+    repo: https://github.com/TedSpinks/kind-demo.git
+    revision: main
 
   verify_create_namespace:
     title: Verify or create namespace
