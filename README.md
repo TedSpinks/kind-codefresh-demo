@@ -1,10 +1,10 @@
-# kind-demo
+# kind-codefresh-demo
 
 A Codefresh step for creating an ephemeral kind cluster (Kubernetes in Docker). This is great if you need to quickly spin up a Kubernetes cluster for testing within a CI/CD pipeline, and then delete it.
 
 ### Background
 
-Builds on the excellent work done by Jie Yu and Steven Chung to solve the problem of running kind within Kubernetes (as opposed to Docker Desktop).
+Builds on the excellent work done by Jie Yu and Steven Chung to solve the problem of running kind within Kubernetes (as opposed to Docker Desktop). The step uses Docker images published in the "jieyu" Docker Hub account.
 
 References:
 - https://d2iq.com/blog/running-kind-inside-a-kubernetes-cluster-for-continuous-integration
