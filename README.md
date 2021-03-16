@@ -13,6 +13,8 @@ References:
 ### How to install this step in your Codefresh account
 
 Prerequisites:
+- Codefresh account: https://codefresh.io/docs/docs/getting-started/create-a-codefresh-account/
+- Codefresh Runner installed in your K8s cluster: https://codefresh.io/docs/docs/administration/codefresh-runner/
 - Codefresh CLI installed: https://codefresh-io.github.io/cli/installation/
 - yq 4+ installed: https://github.com/mikefarah/yq
 
