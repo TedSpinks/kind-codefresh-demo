@@ -1,6 +1,6 @@
 # kind-codefresh-demo
 
-A Codefresh step for creating an ephemeral kind cluster (Kubernetes in Docker). This is great if you need to quickly spin up a Kubernetes cluster for testing within a CI/CD pipeline, and then delete it.
+A Codefresh step for creating an ephemeral [kind cluster](https://kind.sigs.k8s.io/) (Kubernetes in Docker). This is great if you need to quickly spin up a Kubernetes cluster for testing within a CI/CD pipeline, and then delete it.
 
 ### Background
 
